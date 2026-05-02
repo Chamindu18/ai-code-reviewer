@@ -4,8 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "worker": "tsx watch src/worker/reviewWorker.ts",
+    "db:migrate": "prisma migrate dev --schema=src/db/prisma/schema.prisma",
+    "db:generate": "prisma generate --schema=src/db/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=src/db/prisma/schema.prisma"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
