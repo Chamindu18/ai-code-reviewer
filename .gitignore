@@ -1,0 +1,65 @@
+# ==========================================
+# OS Generated Files
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# IDE / Editor
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# Logs
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# Backend
+# ==========================================
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/.env.local
+backend/.env.*.local
+backend/coverage/
+backend/.nyc_output/
+
+# Prisma generated client (regenerated on install)
+backend/src/generated/
+
+# Redis dump
+dump.rdb
+
+# ==========================================
+# Frontend
+# ==========================================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/coverage/
+frontend/.vercel/
+
+# ==========================================
+# ngrok
+# ==========================================
+ngrok.yml
+ngrok.log
+
+# ==========================================
+# Testing
+# ==========================================
+*.test.ts.snap

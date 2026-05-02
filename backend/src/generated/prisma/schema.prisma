@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Repository {
+  id           Int      @id @default(autoincrement())
+  githubRepoId BigInt   @unique @map("github_repo_id")
+  fullName     String   @map("full_name")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  reviews      Review[]
+
+  @@map("repositories")
+}
+
+model Review {
+  id             Int          @id @default(autoincrement())
+  repoId         Int          @map("repo_id")
+  prNumber       Int          @map("pr_number")
+  prTitle        String?      @map("pr_title")
+  prAuthor       String?      @map("pr_author")
+  githubDelivery String?      @unique @map("github_delivery")
+  status         ReviewStatus @default(pending)
+  errorMessage   String?      @map("error_message")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  completedAt    DateTime?    @map("completed_at")
+
+  repo        Repository   @relation(fields: [repoId], references: [id])
+  suggestions Suggestion[]
+
+  @@unique([repoId, prNumber, githubDelivery])
+  @@map("reviews")
+}
+
+enum ReviewStatus {
+  pending
+  processing
+  completed
+  failed
+  partial
+}
+
+model Suggestion {
+  id          Int       @id @default(autoincrement())
+  reviewId    Int       @map("review_id")
+  filePath    String?   @map("file_path")
+  lineNumber  Int?      @map("line_number")
+  category    String
+  severity    Severity
+  message     String
+  explanation String?
+  feedback    Feedback?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@map("suggestions")
+}
+
+enum Severity {
+  low
+  medium
+  high
+}
+
+enum Feedback {
+  accepted
+  rejected
+}
+
+model WebhookEvent {
+  id        String   @id
+  event     String
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("webhook_events")
+}
