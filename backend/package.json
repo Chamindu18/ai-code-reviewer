@@ -11,12 +11,13 @@
     "db:migrate": "prisma migrate dev --schema=src/db/prisma/schema.prisma",
     "db:generate": "prisma generate --schema=src/db/prisma/schema.prisma",
     "db:studio": "prisma studio --schema=src/db/prisma/schema.prisma"
-},
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@octokit/rest": "^22.0.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",

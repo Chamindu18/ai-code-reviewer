@@ -1,24 +1,32 @@
-// axios is used to call the Anthropic API (no official TypeScript SDK yet)
-import axios from 'axios';
-// zod validates that the AI returned exactly what we expect
-import { z } from 'zod';
-import { env } from '../config/env';
-import { logger } from '../config/logger';
+// 1. Import Google’s official Gemini SDK
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Define the exact shape of a suggestion using a Zod schema
+// 2. Import Zod for runtime validation of the AI’s output
+import { z } from "zod";
+
+// 3. Import our validated environment variables
+import { env } from "../config/env";
+
+// (Logger is not used in this version, but you could add it if needed)
+// import { logger } from "../config/logger";
+
+// 4. Define the exact shape of a suggestion
 const SuggestionSchema = z.object({
-  file: z.string(),
-  line: z.number(),
-  category: z.enum(['code_smell', 'security', 'readability', 'performance']),
-  severity: z.enum(['low', 'medium', 'high']),
-  message: z.string(),
-  explanation: z.string(),
+  file: z.string(),                                           // which file
+  line: z.number(),                                           // approximate line number
+  category: z.enum(["code_smell", "security", "readability", "performance"]),
+  severity: z.enum(["low", "medium", "high"]),
+  message: z.string(),                                        // short title
+  explanation: z.string(),                                    // 2‑3 sentence explanation
 });
 
-// Export the TypeScript type inferred from the Zod schema
+// 5. Export the TypeScript type inferred from the Zod schema
 export type AISuggestion = z.infer<typeof SuggestionSchema>;
 
-// The system prompt tells Claude exactly what to do and how to format the response
+/**
+ * System prompt that tells Gemini exactly how to respond.
+ * It’s crucial to ask for “ONLY JSON array” so we can parse it easily.
+ */
 const SYSTEM_PROMPT = `You are an expert code reviewer. Analyze the provided code diff and return a JSON array of suggestions.
 
 Each suggestion must have:
@@ -34,36 +42,57 @@ Rules:
 - If no issues are found, return an empty array [].`;
 
 /**
- * Send a code diff to Claude and get back a validated list of suggestions.
+ * Main function: sends a code diff to Gemini and returns a validated array of suggestions.
  */
 export async function reviewDiff(diff: string): Promise<AISuggestion[]> {
-  // Guard against enormous diffs: clip to 100k characters to avoid token limits
-  const safeDiff = diff.length > 100_000
-    ? diff.slice(0, 100_000) + '\n...[truncated]'
-    : diff;
+  // 6. Truncate the diff to 100k characters to stay within token limits
+  const safeDiff =
+    diff.length > 100_000
+      ? diff.slice(0, 100_000) + "\n...[truncated]"
+      : diff;
 
-  // POST to the Anthropic Messages API
-  const response = await axios.post(
-    'https://api.anthropic.com/v1/messages',
-    {
-      model: 'claude-3-5-sonnet-20241022',   // Use the latest Claude 3.5 Sonnet model ID
-      max_tokens: 4000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: `Review this diff:\n\n${safeDiff}` }],
-    },
-    {
-      headers: {
-        'x-api-key': env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',   // required by Anthropic
-        'Content-Type': 'application/json',
+  // 7. Create a Gemini API client using the API key from .env
+  const geminiApiKey =
+    (env as typeof env & { GEMINI_API_KEY?: string }).GEMINI_API_KEY ??
+    env.API_SECRET;
+
+  if (!geminiApiKey) {
+    throw new Error("Missing Gemini API key");
+  }
+
+  const genAI = new GoogleGenerativeAI(geminiApiKey);
+
+  // 8. Choose the model — gemini-1.5-flash is fast, cheap, and great for this task
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  // 9. Call Gemini
+  const result = await model.generateContent({
+    // Contents: a simple array with one user message that includes the system prompt and the diff
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${SYSTEM_PROMPT}\n\nReview this diff:\n\n${safeDiff}` }],
       },
-    }
-  );
+    ],
+    // Generation config: limit output length and keep the temperature low for deterministic responses
+    generationConfig: {
+      maxOutputTokens: 4000,
+      temperature: 0.2,
+    },
+  });
 
-  // Anthropic returns an array of content blocks; the text is inside response.data.content[0]
-  const text = response.data.content[0].text;
-  // Parse the JSON string returned by the AI
-  const parsed = JSON.parse(text);
-  // Validate with Zod – this throws if the shape doesn't match, preventing bugs downstream
+  // 10. Extract the raw text from the response
+  const text = result.response.text();
+
+  // 11. Gemini sometimes wraps JSON in markdown code fences (```json ... ```)
+  //     We use a regex to find the first JSON array in the text.
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  const cleanedJson = jsonMatch ? jsonMatch[0] : text;
+
+  // 12. Parse the JSON string into a JavaScript array
+  const parsed = JSON.parse(cleanedJson);
+
+  // 13. Validate the shape of the parsed data with Zod.
+  //     If the AI returned an unexpected shape, this will throw a clear error.
   return z.array(SuggestionSchema).parse(parsed);
 }
