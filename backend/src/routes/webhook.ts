@@ -1,8 +1,24 @@
 import { Router } from 'express';
-import { verifyGitHubWebhook } from '../middleware/verifyWebHook';
+import { verifyGitHubWebhook } from '../middleware/verifyWebhook';
 import { reviewQueue } from '../queue/reviewQueue';
 import { prisma } from '../db/prisma/client';
 import { logger } from '../config/logger';
+import { z } from 'zod';
+
+const webhookBodySchema = z.object({
+  action: z.string(),
+  pull_request: z.object({
+    number: z.number(),
+    title: z.string().optional(),
+    user: z.object({ login: z.string() }),
+  }),
+  repository: z.object({
+    id: z.number(),
+    full_name: z.string(),
+    name: z.string(),
+    owner: z.object({ login: z.string() }),
+  }),
+});
 
 const router = Router();
 
@@ -11,7 +27,13 @@ router.post('/github', verifyGitHubWebhook, async (req, res) => {
   const event = req.headers['x-github-event'] as string;
   // X-GitHub-Delivery is a unique ID for every webhook delivery (used for idempotency)
   const delivery = req.headers['x-github-delivery'] as string;
-  const { action } = req.body;
+  const parsedBody = webhookBodySchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    return res.status(400).json({ error: 'Invalid webhook payload' });
+  }
+
+  const payload = parsedBody.data;
+  const { action } = payload;
 
   // We only care about pull_request events
   if (event !== 'pull_request') {
@@ -35,10 +57,12 @@ router.post('/github', verifyGitHubWebhook, async (req, res) => {
   });
 
   // Queue the job (do NOT await it – we must respond to GitHub in under 3 seconds)
-  await reviewQueue.add('process-pr', { delivery, payload: req.body });
+  reviewQueue
+    .add('process-pr', { delivery, payload: { ...payload, delivery } })
+    .catch((error) => logger.error({ delivery, error }, 'Failed to enqueue review'));
 
-  logger.info({ delivery, pr: req.body.pull_request.number }, 'Webhook queued');
-  res.status(202).json({ message: 'Queued for processing' });
+  logger.info({ delivery, pr: payload.pull_request.number }, 'Webhook queued');
+  return res.status(202).json({ message: 'Queued for processing' });
 });
 
 export default router;

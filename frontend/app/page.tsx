@@ -1,9 +1,23 @@
 import Link from 'next/link';
 import { getReviews } from '@/lib/api';   // server component can directly call the proxy
 
+interface Review {
+  id: number;
+  prTitle?: string;
+  prNumber: number;
+  status: string;
+  repo?: { fullName?: string };
+  _count: { suggestions: number };
+}
+
+interface ReviewsResponse {
+  data: Review[];
+  pagination: { total: number; page?: number; pageSize?: number; pages?: number };
+}
+
 export default async function HomePage() {
   // Fetch the first page of reviews (this runs on the server at request time)
-  const data = await getReviews();
+  const data: ReviewsResponse = await getReviews();
 
   return (
     <main className="max-w-5xl mx-auto p-8">
@@ -18,7 +32,7 @@ export default async function HomePage() {
 
       {/* List of reviews */}
       <div className="space-y-4">
-        {data.data.map((review: any) => (
+        {data.data.map((review) => (
           <Link
             key={review.id}
             href={`/reviews/${review.id}`}

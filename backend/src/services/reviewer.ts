@@ -3,12 +3,18 @@ import { logger } from '../config/logger';
 import { getPRDiff, postReview } from './github';
 import { reviewDiff } from './ai';
 
-export async function processPullRequest(payload: any) {
+interface PullRequestPayload {
+  repository: { id: number; full_name: string; name: string; owner: { login: string } };
+  pull_request: { number: number; title?: string; user: { login: string } };
+  delivery?: string;
+}
+
+export async function processPullRequest(payload: PullRequestPayload) {
   const { repository, pull_request } = payload;
   const owner = repository.owner.login;
   const repo = repository.name;
   const prNumber = pull_request.number;
-  const deliveryId = payload.delivery as string;   // X-GitHub-Delivery unique ID
+  const deliveryId = payload.delivery || '';   // X-GitHub-Delivery unique ID
 
   // 1. Upsert the repository record (create if not exists, else ignore)
   const repoRecord = await prisma.repository.upsert({

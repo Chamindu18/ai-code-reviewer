@@ -1,8 +1,34 @@
 import { getReview } from '@/lib/api';
 import { notFound } from 'next/navigation';
 
+interface Suggestion {
+  id: number;
+  filePath: string;
+  lineNumber: number;
+  category: string;
+  severity: string;
+  message: string;
+  explanation: string;
+  feedback?: string;
+}
+
+interface ReviewDetail {
+  id: number;
+  repoId: number;
+  prNumber: number;
+  prTitle?: string;
+  prAuthor: string;
+  githubDelivery?: string;
+  status: string;
+  errorMessage?: string | null;
+  createdAt?: string;
+  completedAt?: string | null;
+  repo?: { fullName?: string };
+  suggestions?: Suggestion[];
+}
+
 export default async function ReviewPage({ params }: { params: { id: string } }) {
-  const review = await getReview(params.id);
+  const review: ReviewDetail | null = await getReview(params.id);
   if (!review) notFound();   // triggers the 404 page
 
   return (
@@ -24,7 +50,7 @@ export default async function ReviewPage({ params }: { params: { id: string } })
 
       {/* Suggestions list */}
       <div className="space-y-4">
-        {review.suggestions?.map((s: any) => (
+        {review.suggestions?.map((s) => (
           <div key={s.id} className="p-4 bg-gray-900 border border-gray-800 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <SeverityDot severity={s.severity} />

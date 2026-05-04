@@ -1,6 +1,6 @@
 # 🤖 AI Code Review Assistant
 
-An automated code review system that listens to GitHub Pull Request webhooks, analyzes diffs using Claude (Anthropic), and posts line-specific review comments directly on the PR. Includes a Next.js dashboard for review history, statistics, and feedback tracking.
+An automated code review system that listens to GitHub Pull Request webhooks, analyzes diffs using Google Gemini (via `@google/generative-ai`), and posts line-specific review comments directly on the PR. Includes a Next.js dashboard for review history, statistics, and feedback tracking.
 
 ---
 
@@ -20,11 +20,6 @@ An automated code review system that listens to GitHub Pull Request webhooks, an
   - [7. GitHub Webhook Configuration](#7-github-webhook-configuration)
 - [Development Workflow](#development-workflow)
 - [API Documentation](#api-documentation)
-- [Deployment](#deployment)
-  - [Backend (Railway)](#backend-railway)
-  - [Frontend (Vercel)](#frontend-vercel)
-- [Environment Reference](#environment-reference)
-- [Troubleshooting](#troubleshooting)
 - [License](#license)
 
 ---
@@ -42,8 +37,8 @@ An automated code review system that listens to GitHub Pull Request webhooks, an
 │                                                       └──────┬──────┘
 │                                                              │
 │                          ┌─────────────┐                     │
-└──────────────────────────│   Claude    │◄────────────────────┘
-│  (Anthropic)│
+└──────────────────────────│   Gemini    │◄────────────────────┘
+│    (AI)     │
 └─────────────┘
 │
 ▼
@@ -52,8 +47,6 @@ An automated code review system that listens to GitHub Pull Request webhooks, an
 │   (Review   │
 │   Comments) │
 └─────────────┘
-
----
 
 **Key Design Decisions:**
 
@@ -71,81 +64,52 @@ An automated code review system that listens to GitHub Pull Request webhooks, an
 
 | Layer | Technology |
 |-------|------------|
-| **Backend** | Node.js 20+, Express, TypeScript |
+| **Backend** | Node.js 20+, Express.js, TypeScript |
 | **Database** | PostgreSQL 15+ |
-| **ORM** | Prisma 7 with `@prisma/adapter-pg` |
+| **ORM** | Prisma 7 |
 | **Queue** | BullMQ + Redis 7+ |
-| **AI** | Anthropic Claude (Sonnet 4) |
-| **GitHub API** | Octokit REST |
-| **Frontend** | Next.js 14+ (App Router), React, TypeScript, Tailwind CSS |
+| **AI** | Google Gemini SDK (`@google/generative-ai`) |
+| **GitHub API** | Octokit REST (`@octokit/rest`) |
+| **Frontend** | Next.js 14 (App Router), React, TypeScript, Tailwind CSS |
 | **State Management** | TanStack Query (React Query) |
-| **Charts** | Recharts |
-| **Icons** | Lucide React |
-| **Logging** | Pino (structured JSON) |
-| **Validation** | Zod |
+| **Charts & Icons** | Recharts, Lucide React |
 
 ---
 
 ## Prerequisites
 
-Install these tools **in order**:
-
-1. **Node.js 20+ LTS**
-   - https://nodejs.org → Download LTS
-   - Verify: `node --version` → `v20.x` or `v22.x`
-
+1. **Node.js 20+ LTS** (`node --version`)
 2. **Git**
-   - https://git-scm.com → Download → Install
-   - Verify: `git --version`
-
-3. **PostgreSQL 15+**
-   - https://www.postgresql.org/download/
-   - Install pgAdmin (GUI included)
-   - Verify service is running
-
-4. **Redis 7+**
-   - **Windows:** `docker run -d -p 6379:6379 redis:7-alpine`
-   - **macOS:** `brew install redis && brew services start redis`
-   - Verify: `redis-cli ping` → `PONG`
-
-5. **ngrok** (for local webhook testing)
-   - https://ngrok.com → Sign up → Download
-   - Verify: `ngrok --version`
+3. **PostgreSQL 15+** (Running locally or via Docker)
+4. **Redis 7+** (Running locally or via Docker)
+5. **ngrok** (Required for local GitHub webhook testing)
 
 ---
 
 ## Project Structure
 
-ai-code-reviewer/
+```text
+/
 ├── backend/
 │   ├── src/
-│   │   ├── config/           # env.ts (validated), logger.ts (Pino)
-│   │   ├── db/
-│   │   │   └── prisma/
-│   │   │       ├── schema.prisma
-│   │   │       └── migrations/
-│   │   ├── middleware/       # verifyWebhook.ts, requireAuth.ts, errorHandler.ts
-│   │   ├── queue/            # Redis connection, BullMQ queue producer
-│   │   ├── worker/           # BullMQ consumer (separate process)
-│   │   ├── services/         # github.ts, ai.ts, reviewer.ts, chunker.ts
-│   │   ├── routes/           # webhook.ts, reviews.ts, feedback.ts
+│   │   ├── config/           # Environment and Logger configuration
+│   │   ├── db/prisma/        # Prisma schema and generated files
+│   │   ├── middleware/       # Express middlewares (Webhook verification, auth, etc.)
+│   │   ├── queue/            # BullMQ connection & producers
+│   │   ├── routes/           # Express routes (webhooks, reviews, feedback)
+│   │   ├── services/         # Core logic (AI, GitHub, chunking)
 │   │   ├── validation/       # Zod schemas
-│   │   └── index.ts          # Express entry point
-│   ├── prisma.config.ts      # Prisma 7 config (datasource URL)
-│   ├── .env                  # Secrets (gitignored)
-│   └── package.json
+│   │   ├── worker/           # BullMQ consumer logic
+│   │   └── index.ts          # Express API entry
+│   ├── .env                  # Backend secrets
+│   └── package.json          
 │
-├── frontend/
-│   ├── app/                  # Next.js App Router
-│   │   ├── api/              # Proxy routes (secure backend calls)
-│   │   ├── reviews/
-│   │   └── page.tsx
-│   ├── components/           # React components
-│   ├── lib/                  # API client
-│   └── package.json
-│
-├── .gitignore
-└── README.md
+└── frontend/
+    ├── app/                  # Next.js 14 App Router
+    ├── components/           # UI Components (ReviewCard, StatsPanel, DiffViewer)
+    ├── lib/                  # Shared utilities (API clients)
+    └── package.json          
+```
 
 ---
 
@@ -157,12 +121,100 @@ ai-code-reviewer/
 git clone <your-repo-url>
 cd ai-code-reviewer
 
-# Backend
+# Install backend dependencies
 cd backend
 npm install
-npm install pg @prisma/adapter-pg  # Prisma 7 PostgreSQL adapter
 
-# Frontend (from project root)
+# Install frontend dependencies
 cd ../frontend
 npm install
+```
+
+### 2. PostgreSQL Setup
+Ensure PostgreSQL is running locally on port `5432` or start it via Docker:
+```bash
+docker run --name pg-ai-reviewer -e POSTGRES_PASSWORD=12345 -d -p 5432:5432 postgres:15-alpine
+```
+
+### 3. Redis Setup
+Ensure Redis is running locally on port `6379` or start it via Docker:
+```bash
+docker run -d -p 6379:6379 redis:7-alpine
+```
+
+### 4. Environment Variables
+Create a `.env` file in the `backend/` directory:
+
+```env
+PORT=3001
+DATABASE_URL="postgresql://postgres:12345@localhost:5432/code_reviewer?schema=public"
+REDIS_URL="redis://localhost:6379"
+
+# GitHub Setup
+GITHUB_WEBHOOK_SECRET="your_webhook_secret"
+GITHUB_TOKEN="your_github_personal_access_token"
+
+# AI Setup
+GEMINI_API_KEY="your_google_gemini_api_key"
+API_SECRET="your_api_secret_for_frontend_communication"
+```
+
+### 5. Database Migrations
+In the `backend/` directory, apply the Prisma schema to your database:
+```bash
+cd backend
+npm run db:generate
+npm run db:migrate
+```
+
+### 6. Run the Services
+
+You need three terminal windows to run everything locally:
+
+**Terminal 1 (Backend API):**
+```bash
+cd backend
+npm run dev
+```
+
+**Terminal 2 (Background Worker):**
+```bash
+cd backend
+npm run worker
+```
+
+**Terminal 3 (Next.js Frontend):**
+```bash
+cd frontend
+npm run dev
+```
+
+### 7. GitHub Webhook Configuration
+To test locally, expose your backend port with ngrok:
+```bash
+ngrok http 3001
+```
+
+Take the `https` URL from ngrok (e.g., `https://abcd.ngrok-free.app`) and configure it on your GitHub Repository:
+1. Go to **Settings > Webhooks**.
+2. **Payload URL:** `https://<ngrok-url>/api/webhook`
+3. **Content type:** `application/json`
+4. **Secret:** Match the `GITHUB_WEBHOOK_SECRET` in your `.env`.
+5. Select **Let me select individual events** → Check **Pull requests** & **Pull request review comments**.
+
+---
+
+## Development Workflow
+1. Push code to your test repository and open a Pull Request.
+2. The GitHub Webhook hits the Express API.
+3. The API validates the payload and drops a job into BullMQ (Redis).
+4. The Backend Worker picks up the job, fetches the diff using Octokit, and chunks it.
+5. The Google Gemini SDK generates review suggestions.
+6. The suggestions are posted as line-level annotations on the PR using Octokit.
+7. Open `http://localhost:3000` to interact with the Dashboard and track review feedback!
+
+---
+
+## License
+ISC
 

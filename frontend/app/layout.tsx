@@ -1,7 +1,7 @@
 // TypeScript sometimes cannot find type declarations for CSS imports in this project setup.
 // Ignore the next line so the build doesn't error on the side-effect CSS import.
 // @ts-ignore
-import './globals.css';            // Tailwind's base styles
+import './globals.css';             // Tailwind's base styles
 import { Providers } from './providers';
 
 // Metadata for the HTML head

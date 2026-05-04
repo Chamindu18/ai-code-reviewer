@@ -21,8 +21,8 @@ export const env = cleanEnv(process.env, {
   // GITHUB_TOKEN: personal access token for GitHub API calls
   GITHUB_TOKEN: str(),
 
-  // ANTHROPIC_API_KEY: API key for Claude / Anthropic
-  ANTHROPIC_API_KEY: str(),
+  // GEMINI_API_KEY: API key for Gemini / Google
+  GEMINI_API_KEY: str(),
 
   // API_SECRET: a random string used as a bearer token to protect the dashboard API
   API_SECRET: str(),
