@@ -5,9 +5,13 @@ export async function POST(
   { params }: { params: { id: string } }   // The dynamic [id] from the URL
 ) {
   const body = await request.json();   // read the feedback from the request body
+  const backendUrl =
+    process.env.BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    'http://localhost:3001';
 
   // Proxy the POST to the backend
-  const res = await fetch(`${process.env.BACKEND_URL}/api/feedback/${params.id}`, {
+  const res = await fetch(`${backendUrl}/api/feedback/${params.id}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

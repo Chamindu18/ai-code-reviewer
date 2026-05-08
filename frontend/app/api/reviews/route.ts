@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
+  const backendUrl =
+    process.env.BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    'http://localhost:3001';
   // Read the 'page' query parameter from the URL
   const { searchParams } = new URL(request.url);
   const page = searchParams.get('page') || '1';
   const authHeader = request.headers.get('authorization') || '';
 
   // Forward the request to the real backend, including the secret API key
-  const res = await fetch(`${process.env.BACKEND_URL}/api/reviews?page=${page}`, {
+  const res = await fetch(`${backendUrl}/api/reviews?page=${page}`, {
     headers: { Authorization: authHeader || `Bearer ${process.env.API_SECRET}` },
     cache: 'no-store',
   });

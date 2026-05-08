@@ -1,220 +1,221 @@
-# 🤖 AI Code Review Assistant
+# AI Code Review Assistant
 
-An automated code review system that listens to GitHub Pull Request webhooks, analyzes diffs using Google Gemini (via `@google/generative-ai`), and posts line-specific review comments directly on the PR. Includes a Next.js dashboard for review history, statistics, and feedback tracking.
+AI Code Review Assistant is a full-stack TypeScript application that automates pull request reviews using Google Gemini, posts line-level feedback to GitHub, and provides a dashboard for tracking review outcomes and developer feedback. It is designed as a production-ready portfolio project with real integrations, structured data, and a polished UI.
 
----
+## Highlights
 
-## Table of Contents
+- Webhook-to-queue pipeline keeps GitHub responses under 3 seconds
+- Line-level review comments posted directly on PRs
+- Review history, status, and feedback tracking in a dashboard
+- Redis-backed queue with a dedicated worker process
+- Docker-ready stack (Postgres + Redis + API + Worker + Frontend)
 
-- [Architecture Overview](#architecture-overview)
-- [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-  - [1. Clone & Install](#1-clone--install)
-  - [2. PostgreSQL Setup](#2-postgresql-setup)
-  - [3. Redis Setup](#3-redis-setup)
-  - [4. Environment Variables](#4-environment-variables)
-  - [5. Database Migrations](#5-database-migrations)
-  - [6. Run the Services](#6-run-the-services)
-  - [7. GitHub Webhook Configuration](#7-github-webhook-configuration)
-- [Development Workflow](#development-workflow)
-- [API Documentation](#api-documentation)
-- [License](#license)
+## Screenshots
 
----
+Add screenshots after running locally:
+
+- Dashboard overview: docs/screenshots/dashboard.png
+- Review detail: docs/screenshots/review-detail.png
+- Reviews list: docs/screenshots/reviews.png
 
 ## Architecture Overview
-┌─────────────┐     Webhook      ┌─────────────┐     Queue      ┌─────────────┐
-│   GitHub    │ ───────────────► │   Express   │ ─────────────► │   BullMQ    │
-│   (PR open) │                  │   API       │                │   (Redis)   │
-└─────────────┘                  └─────────────┘                └──────┬──────┘
-▲                                                               │
-│                                                               ▼
-│                                                       ┌─────────────┐
-│                                                       │   Worker    │
-│                                                       │  (process)  │
-│                                                       └──────┬──────┘
-│                                                              │
-│                          ┌─────────────┐                     │
-└──────────────────────────│   Gemini    │◄────────────────────┘
-│    (AI)     │
-└─────────────┘
-│
-▼
-┌─────────────┐
-│   GitHub    │
-│   (Review   │
-│   Comments) │
-└─────────────┘
 
-**Key Design Decisions:**
+```
+GitHub Webhook -> Express API -> BullMQ Queue -> Worker -> Gemini -> GitHub Review Comments
+                                      |
+                                      -> Prisma/Postgres -> Dashboard
+```
 
-| Feature | Rationale |
-|---------|-----------|
-| **Queue + Worker** | GitHub requires webhook responses in < 3 seconds. The worker processes AI reviews asynchronously. |
-| **Idempotency** | Every `X-GitHub-Delivery` ID is tracked in `WebhookEvent` to prevent duplicate reviews on retries. |
-| **Line-specific comments** | Uses GitHub's Review API (`pulls.createReview`) instead of generic issue comments. |
-| **Transactions** | Database operations are atomic — if GitHub posting fails, the review is marked `failed`, not stuck. |
-| **Prisma 7 + Adapter** | Type-safe queries with direct PostgreSQL driver connection. |
+### Key Design Decisions
 
----
+- Queue-based processing keeps webhook responses fast
+- Idempotent delivery tracking avoids duplicate reviews
+- Line-level review annotations use GitHub Reviews API
+- Prisma transactions keep review and suggestions consistent
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|------------|
-| **Backend** | Node.js 20+, Express.js, TypeScript |
-| **Database** | PostgreSQL 15+ |
-| **ORM** | Prisma 7 |
-| **Queue** | BullMQ + Redis 7+ |
-| **AI** | Google Gemini SDK (`@google/generative-ai`) |
-| **GitHub API** | Octokit REST (`@octokit/rest`) |
-| **Frontend** | Next.js 14 (App Router), React, TypeScript, Tailwind CSS |
-| **State Management** | TanStack Query (React Query) |
-| **Charts & Icons** | Recharts, Lucide React |
-
----
-
-## Prerequisites
-
-1. **Node.js 20+ LTS** (`node --version`)
-2. **Git**
-3. **PostgreSQL 15+** (Running locally or via Docker)
-4. **Redis 7+** (Running locally or via Docker)
-5. **ngrok** (Required for local GitHub webhook testing)
-
----
+| --- | --- |
+| Backend | Node.js 20, Express, TypeScript |
+| Database | PostgreSQL 15, Prisma |
+| Queue | BullMQ, Redis 7 |
+| AI | Google Gemini SDK |
+| GitHub | Octokit REST |
+| Frontend | Next.js 14, React, Tailwind, React Query |
+| Charts | Recharts |
 
 ## Project Structure
 
-```text
-/
-├── backend/
-│   ├── src/
-│   │   ├── config/           # Environment and Logger configuration
-│   │   ├── db/prisma/        # Prisma schema and generated files
-│   │   ├── middleware/       # Express middlewares (Webhook verification, auth, etc.)
-│   │   ├── queue/            # BullMQ connection & producers
-│   │   ├── routes/           # Express routes (webhooks, reviews, feedback)
-│   │   ├── services/         # Core logic (AI, GitHub, chunking)
-│   │   ├── validation/       # Zod schemas
-│   │   ├── worker/           # BullMQ consumer logic
-│   │   └── index.ts          # Express API entry
-│   ├── .env                  # Backend secrets
-│   └── package.json          
-│
-└── frontend/
-    ├── app/                  # Next.js 14 App Router
-    ├── components/           # UI Components (ReviewCard, StatsPanel, DiffViewer)
-    ├── lib/                  # Shared utilities (API clients)
-    └── package.json          
+```
+.
+├── backend
+│   ├── src
+│   │   ├── config
+│   │   ├── db
+│   │   ├── middleware
+│   │   ├── queue
+│   │   ├── routes
+│   │   ├── services
+│   │   ├── validation
+│   │   └── worker
+│   ├── scripts
+│   └── package.json
+├── frontend
+│   ├── app
+│   ├── components
+│   ├── lib
+│   └── package.json
+└── docker-compose.yml
 ```
 
----
+## Local Development
 
-## Getting Started
-
-### 1. Clone & Install
+### 1) Install dependencies
 
 ```bash
-git clone <your-repo-url>
-cd ai-code-reviewer
-
-# Install backend dependencies
 cd backend
 npm install
-
-# Install frontend dependencies
 cd ../frontend
 npm install
 ```
 
-### 2. PostgreSQL Setup
-Ensure PostgreSQL is running locally on port `5432` or start it via Docker:
+### 2) Configure environment variables
+
+Copy example files and replace values:
+
 ```bash
-docker run --name pg-ai-reviewer -e POSTGRES_PASSWORD=12345 -d -p 5432:5432 postgres:15-alpine
+cp backend/.env.example backend/.env
+cp frontend/.env.local.example frontend/.env.local
 ```
 
-### 3. Redis Setup
-Ensure Redis is running locally on port `6379` or start it via Docker:
+### 3) Start Postgres and Redis
+
+Option A: Use Docker Compose
+
 ```bash
+docker compose up -d postgres redis
+```
+
+Option B: Run locally
+
+```bash
+docker run --name pg-ai-reviewer -e POSTGRES_PASSWORD=postgres123 -d -p 5432:5432 postgres:15-alpine
 docker run -d -p 6379:6379 redis:7-alpine
 ```
 
-### 4. Environment Variables
-Create a `.env` file in the `backend/` directory:
+### 4) Run migrations
 
-```env
-PORT=3001
-DATABASE_URL="postgresql://postgres:12345@localhost:5432/code_reviewer?schema=public"
-REDIS_URL="redis://localhost:6379"
-
-# GitHub Setup
-GITHUB_WEBHOOK_SECRET="your_webhook_secret"
-GITHUB_TOKEN="your_github_personal_access_token"
-
-# AI Setup
-GEMINI_API_KEY="your_google_gemini_api_key"
-API_SECRET="your_api_secret_for_frontend_communication"
-```
-
-### 5. Database Migrations
-In the `backend/` directory, apply the Prisma schema to your database:
 ```bash
 cd backend
 npm run db:generate
 npm run db:migrate
 ```
 
-### 6. Run the Services
+### 4b) Optional demo seed data
 
-You need three terminal windows to run everything locally:
-
-**Terminal 1 (Backend API):**
 ```bash
+npm run db:seed
+```
+
+### 5) Start services
+
+```bash
+# Terminal 1
 cd backend
 npm run dev
-```
 
-**Terminal 2 (Background Worker):**
-```bash
+# Terminal 2
 cd backend
 npm run worker
-```
 
-**Terminal 3 (Next.js Frontend):**
-```bash
+# Terminal 3
 cd frontend
 npm run dev
 ```
 
-### 7. GitHub Webhook Configuration
-To test locally, expose your backend port with ngrok:
+### 6) Configure GitHub webhook
+
+Expose your backend and add the webhook:
+
 ```bash
 ngrok http 3001
 ```
 
-Take the `https` URL from ngrok (e.g., `https://abcd.ngrok-free.app`) and configure it on your GitHub Repository:
-1. Go to **Settings > Webhooks**.
-2. **Payload URL:** `https://<ngrok-url>/api/webhook`
-3. **Content type:** `application/json`
-4. **Secret:** Match the `GITHUB_WEBHOOK_SECRET` in your `.env`.
-5. Select **Let me select individual events** → Check **Pull requests** & **Pull request review comments**.
+Webhook URL: `https://<ngrok-url>/webhook/github`
 
----
+## Environment Variables
 
-## Development Workflow
-1. Push code to your test repository and open a Pull Request.
-2. The GitHub Webhook hits the Express API.
-3. The API validates the payload and drops a job into BullMQ (Redis).
-4. The Backend Worker picks up the job, fetches the diff using Octokit, and chunks it.
-5. The Google Gemini SDK generates review suggestions.
-6. The suggestions are posted as line-level annotations on the PR using Octokit.
-7. Open `http://localhost:3000` to interact with the Dashboard and track review feedback!
+### Backend (backend/.env)
 
----
+| Variable | Purpose |
+| --- | --- |
+| PORT | API port (default 3001) |
+| DATABASE_URL | Postgres connection string |
+| REDIS_URL | Redis connection string |
+| GITHUB_WEBHOOK_SECRET | GitHub webhook secret |
+| GITHUB_TOKEN | GitHub token with repo scope |
+| GEMINI_API_KEY | Gemini API key |
+| API_SECRET | Bearer token for dashboard API |
+| FRONTEND_URL | Allowed CORS origin |
+
+### Frontend (frontend/.env.local)
+
+| Variable | Purpose |
+| --- | --- |
+| NEXT_PUBLIC_BACKEND_URL | Base backend URL for client calls |
+| BACKEND_URL | Base backend URL for server proxy routes |
+| API_SECRET | Server-side bearer token |
+
+## API Overview
+
+Base: `http://localhost:3001/api`
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | /reviews | Paginated review list |
+| GET | /reviews/:id | Review details + suggestions |
+| POST | /feedback/:suggestionId | Submit feedback |
+| GET | /stats | KPI summary and 7-day trend |
+
+## Data Model (Prisma)
+
+- Repository
+  - githubRepoId, fullName, isActive
+- Review
+  - repoId, prNumber, prTitle, prAuthor, status, errorMessage, createdAt
+- Suggestion
+  - filePath, lineNumber, category, severity, message, explanation, feedback
+- WebhookEvent
+  - id, event, processed
+
+## Security Notes
+
+- Never commit real secrets; use .env.example files
+- Rotate any previously exposed tokens
+- API is protected by a bearer API secret for dashboard access
+- Webhook requests are verified via HMAC signature
+
+## Testing
+
+Backend tests (Jest):
+
+```bash
+cd backend
+npm test
+```
+
+## Deployment
+
+See DEPLOYMENT.md for Docker and production deployment guidance.
+
+## Roadmap
+
+- CI workflow for lint/test
+- Demo mode toggle for UI
+- Better comment placement for diff edge cases
+- Additional trend analytics (per repo, per author)
 
 ## License
-ISC
 
+MIT License. See LICENSE.

@@ -5,6 +5,7 @@ import 'dotenv/config';
 import express from 'express';      // web framework
 import helmet from 'helmet';        // sets HTTP security headers
 import rateLimit from 'express-rate-limit';   // rate‑limits requests
+import cors from 'cors';
 
 // 3. Import our application modules
 import { env } from './config/env';                // validated environment config
@@ -16,6 +17,7 @@ import { redis } from './queue/connection';        // Redis connection (for queu
 import webhookRoutes from './routes/webhook';
 import reviewRoutes from './routes/reviews';
 import feedbackRoutes from './routes/feedback';
+import statsRoutes from './routes/stats';
 import { errorHandler } from './middleware/errorHandler';
 import { requireApiKey } from './middleware/requireAuth';
 
@@ -24,6 +26,14 @@ const app = express();
 
 // 6. Apply security headers to all responses (e.g., hide X-Powered-By)
 app.use(helmet());
+
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
+}));
 
 // 7. Rate limit: allow max 100 requests per minute per client IP
 //    Prevents abuse and accidental DDoS
@@ -56,6 +66,7 @@ app.use('/api', requireApiKey);
 // 13. Sub‑routes for reviews and feedback
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/stats', statsRoutes);
 
 // 14. Central error handler – catches any unhandled exceptions
 app.use(errorHandler);

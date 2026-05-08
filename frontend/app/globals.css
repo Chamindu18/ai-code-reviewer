@@ -2,3 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 body { background-color: #030712; color: #f3f4f6; }
+:root {
+	--bg-900: #0b0f1a;
+	--bg-800: #111827;
+	--bg-700: #1f2937;
+	--text-100: #f8fafc;
+	--text-300: #cbd5f5;
+	--accent-500: #10b981;
+	--accent-600: #0ea5e9;
+	--accent-700: #14b8a6;
+	--warning-500: #f59e0b;
+	--danger-500: #ef4444;
+}
+
+body {
+	color: var(--text-100);
+	background:
+		radial-gradient(1200px 600px at 90% -10%, rgba(14, 165, 233, 0.18), transparent 60%),
+		radial-gradient(800px 500px at 10% 10%, rgba(16, 185, 129, 0.18), transparent 60%),
+		linear-gradient(180deg, var(--bg-900), #0a1220 55%, #0b0f1a 100%);
+	font-family: var(--font-space-grotesk), system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+	html {
+		@apply antialiased;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4 {
+		font-family: var(--font-fraunces), var(--font-space-grotesk), serif;
+	}
+
+	a {
+		@apply transition-colors;
+	}
+}
+
+@layer components {
+	.glass-panel {
+		@apply bg-gray-900/70 border border-gray-800/80 shadow-xl shadow-black/20;
+		backdrop-filter: blur(12px);
+	}
+
+	.app-container {
+		@apply mx-auto max-w-6xl px-4 sm:px-6 lg:px-8;
+	}
+}

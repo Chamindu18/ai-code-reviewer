@@ -52,15 +52,7 @@ export async function reviewDiff(diff: string): Promise<AISuggestion[]> {
       : diff;
 
   // 7. Create a Gemini API client using the API key from .env
-  const geminiApiKey =
-    (env as typeof env & { GEMINI_API_KEY?: string }).GEMINI_API_KEY ??
-    env.API_SECRET;
-
-  if (!geminiApiKey) {
-    throw new Error("Missing Gemini API key");
-  }
-
-  const genAI = new GoogleGenerativeAI(geminiApiKey);
+  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
   // 8. Choose the model — gemini-1.5-flash is fast, cheap, and great for this task
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
